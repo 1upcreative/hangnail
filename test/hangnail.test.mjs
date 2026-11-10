@@ -28,18 +28,27 @@ test("ps elapsed times read as seconds", () => {
 test("only test files under the run are listed, once each, at their longest", () => {
   const psText = [
     "100 1 01:00 npm test",
-    "101 100 00:59 node --test --test-concurrency=2 a.test.ts b.spec.js",
-    "102 101 14:13 node --import tsx tests/slow.test.ts",
-    "103 101 00:02 node --import tsx tests/quick.test.ts",
-    "104 102 14:20 node --import tsx tests/slow.test.ts",
-    "105 101 00:30 node scripts/helper.mjs",
+    "101 100 00:59 sh -c node --test tests/slow.test.ts tests/quick.test.ts tests/last.test.ts",
+    "102 101 00:59 node --test --test-concurrency=2 tests/slow.test.ts tests/quick.test.ts tests/last.test.ts",
+    "103 102 14:13 node --import tsx tests/slow.test.ts",
+    "104 102 00:02 node --import tsx tests/quick.test.ts",
+    "105 103 14:20 node --import tsx tests/slow.test.ts",
+    "106 102 00:30 node scripts/helper.mjs",
     "200 1 30:00 node --test someone-else.test.ts",
   ].join("\n");
   assert.deepEqual(runningTestFiles(100, { psText }), [
-    { file: "b.spec.js", seconds: 59 },
     { file: "tests/slow.test.ts", seconds: 860 },
     { file: "tests/quick.test.ts", seconds: 2 },
   ]);
+});
+
+test("the runner that lists every file is never taken for its last file", () => {
+  // the runner's command ends in a test file path and is as old as the whole run
+  const psText = [
+    "100 1 05:00 node --test a.test.ts b.test.ts last.test.ts",
+    "101 100 00:01 node a.test.ts",
+  ].join("\n");
+  assert.deepEqual(runningTestFiles(100, { psText }), [{ file: "a.test.ts", seconds: 1 }]);
 });
 
 test("a file that never exits is stopped and named; the quick one is not", async () => {

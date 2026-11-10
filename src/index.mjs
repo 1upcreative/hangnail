@@ -32,8 +32,11 @@ export function runningTestFiles(rootPid, { match = DEFAULT_MATCH, psText = read
   const files = [];
   for (const r of rows) {
     if (!under.has(r.pid) || r.pid === rootPid) continue;
-    const file = r.command.match(match)?.[0];
-    if (!file) continue;
+    // a test file's own process names exactly one test file; a runner (or an npm script) that
+    // lists several is the parent of the run, not a file, and its age is the whole run's
+    const named = r.command.split(/\s+/).filter((token) => match.test(token));
+    if (named.length !== 1) continue;
+    const file = named[0];
     const seconds = etimeSeconds(r.etime);
     const seen = files.find((f) => f.file === file);
     if (!seen) files.push({ file, seconds });
