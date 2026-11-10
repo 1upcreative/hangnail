@@ -21,14 +21,27 @@ export function etimeSeconds(etime) {
   return Number(days) * 86_400 + clock.split(":").reduce((s, part) => s * 60 + Number(part), 0);
 }
 
-// -ww: never cut long command lines; a big buffer: a busy machine's process list runs to megabytes
-const readPs = () => execFileSync("ps", ["-ww", "-A", "-o", "pid=,ppid=,pgid=,etime=,command="], { encoding: "utf8", maxBuffer: 64 * 1024 * 1024 });
+// -ww: never cut long command lines; a big buffer: a busy machine's process list runs to megabytes.
+// Slimmer ps builds (BusyBox) take fewer flags, so the first form that works is kept.
+const PS_FORMS = [["-ww", "-A", "-o", "pid=,ppid=,pgid=,etime=,args="], ["-A", "-o", "pid=,ppid=,pgid=,etime=,args="], ["-o", "pid,ppid,pgid,etime,args"]];
+let psForm = null;
+const readPs = () => {
+  for (const form of psForm ? [psForm] : PS_FORMS) {
+    try {
+      const text = execFileSync("ps", form, { encoding: "utf8", maxBuffer: 64 * 1024 * 1024, stdio: ["ignore", "pipe", "ignore"] });
+      psForm = form;
+      return text;
+    } catch (err) { if (psForm) throw err; }
+  }
+  throw new Error("ps: no supported form");
+};
 
 /** Every process the run started: children of `rootPid` by parent, plus anything left in its
  *  process group after its parent died. `rootPid` itself is included. */
 export function processTree(rootPid, psText = readPs()) {
   const rows = psText.split("\n").map((line) => line.trim().match(/^(\d+)\s+(\d+)\s+(\d+)\s+(\S+)\s+(.*)$/)).filter(Boolean)
     .map(([, pid, ppid, pgid, etime, command]) => ({ pid: Number(pid), ppid: Number(ppid), pgid: Number(pgid), etime, command }));
+  if (rootPid === -1) return rows; // everything, for checking pids before a kill
   const under = new Set([rootPid, ...rows.filter((r) => r.pgid === rootPid).map((r) => r.pid)]);
   for (let grew = true; grew;) {
     grew = false;
@@ -60,14 +73,22 @@ export function runningTestFiles(rootPid, { match = DEFAULT_MATCH, psText } = {}
   return testFilesIn(processTree(rootPid, psText), match);
 }
 
+/** The pids in `seen` (pid → command) that still run that same command: a pid the system has
+ *  since handed to something else is not ours to stop. */
+export function stillOurs(seen, rows) {
+  return rows.filter((r) => seen.get(r.pid) === r.command).map((r) => r.pid);
+}
+
 const STOP_SIGNALS = ["SIGINT", "SIGTERM", "SIGHUP"];
 
 /**
  * Run `cmd args` and watch it.
- * Resolves { status, signal, out, hung, timedOut, blind }: `hung` lists the test files still
- * running when the run was stopped (empty when it finished on its own); `blind` is true when `ps`
- * kept failing and hangnail stopped the run instead of watching nothing; `out` is everything it
- * printed. Options: fileLimitS (default 300), totalLimitS (default 0 = none), pollMs (default 5000,
+ * Resolves { status, signal, out, hung, timedOut, blind, unwatched, signalled }: `hung` lists the
+ * test files still running when the run was stopped (empty when it finished on its own); `blind`
+ * is true when `ps` stopped working mid-run and hangnail stopped the run instead of watching
+ * nothing; `unwatched` is true when `ps` never worked here, so only the total limit applied;
+ * `signalled` names the signal that stopped hangnail itself, if one did; `out` is everything the
+ * command printed. Options: fileLimitS (default 300), totalLimitS (default 0 = none), pollMs (default 5000,
  * at least 500), match (RegExp for one command-line token naming a test file), cwd, env, and echo
  * (also stream the output live).
  * If this process gets SIGINT, SIGTERM or SIGHUP, hangnail stops everything the run started first,
@@ -88,11 +109,19 @@ export function watch(cmd, args = [], { fileLimitS = 300, totalLimitS = 0, pollM
     let blind = false;
     let stopping = false;
     let psFails = 0;
-    let seen = new Set(); // every pid the run has shown, for helpers that left the group
+    let psWorked = false;
+    let unwatched = false;
+    let signalled = null;
+    // every process the run has shown, with its command: one that left the group still gets
+    // stopped, and a pid the system has since handed to something else is left alone
+    const seen = new Map();
 
     const killAll = (sig) => {
       try { process.kill(-child.pid, sig); } catch { /* group already gone */ }
-      if (sig === "SIGKILL") for (const pid of seen) { try { process.kill(pid, sig); } catch { /* gone */ } }
+      if (sig !== "SIGKILL" || !seen.size) return;
+      let now;
+      try { now = processTree(-1, readPs()); } catch { return; } // can't confirm who is who: kill nobody by pid
+      for (const pid of stillOurs(seen, now)) { try { process.kill(pid, sig); } catch { /* gone */ } }
     };
     const stop = () => {
       if (stopping) return;
@@ -101,10 +130,11 @@ export function watch(cmd, args = [], { fileLimitS = 300, totalLimitS = 0, pollM
       setTimeout(() => killAll("SIGKILL"), 3000).unref();
     };
     const look = () => {
-      try { seen = new Set([...seen, ...processTree(child.pid).map((r) => r.pid)]); } catch { /* best effort */ }
+      try { for (const r of processTree(child.pid)) seen.set(r.pid, r.command); } catch { /* best effort */ }
     };
     // this process is being stopped: take the run down with it, then let the signal through
     const onSignal = (sig) => {
+      signalled = sig;
       look();
       killAll("SIGKILL");
       for (const s of STOP_SIGNALS) process.off(s, onSignal);
@@ -115,13 +145,18 @@ export function watch(cmd, args = [], { fileLimitS = 300, totalLimitS = 0, pollM
     const timer = setInterval(() => {
       timedOut = totalLimitS > 0 && (Date.now() - started) / 1000 >= totalLimitS;
       let tree = null;
-      try { tree = processTree(child.pid); psFails = 0; } catch { psFails++; }
+      try { tree = processTree(child.pid); psFails = 0; psWorked = true; } catch { psFails++; }
       if (tree) {
-        for (const r of tree) seen.add(r.pid);
+        for (const r of tree) if (r.pid !== child.pid) seen.set(r.pid, r.command);
         const over = testFilesIn(tree, match).filter((f) => f.seconds >= fileLimitS);
         if (over.length) hung = over;
         else if (timedOut) hung = testFilesIn(tree, match);
-      } else if (psFails >= PS_FAILS_ALLOWED) blind = true;
+      } else if (psFails >= PS_FAILS_ALLOWED) {
+        // ps went away mid-run: stop rather than go blind. ps never worked here: keep the run going
+        // on the total limit alone, and say so once
+        if (psWorked) blind = true;
+        else if (!unwatched) { unwatched = true; if (echo) process.stderr.write("hangnail: can't read the process list (ps) here, so only --total-limit applies\n"); }
+      }
       if (hung.length || timedOut || blind) { clearInterval(timer); stop(); }
     }, Math.max(MIN_POLL_MS, pollMs));
 
@@ -134,7 +169,7 @@ export function watch(cmd, args = [], { fileLimitS = 300, totalLimitS = 0, pollM
       done();
       // anything that shrugged off SIGTERM, or slipped out of the group, goes now
       if (stopping) { look(); killAll("SIGKILL"); }
-      resolve({ status, signal, out: Buffer.concat(chunks).toString("utf8"), hung, timedOut, blind });
+      resolve({ status, signal, out: Buffer.concat(chunks).toString("utf8"), hung, timedOut, blind, unwatched, signalled });
     });
   });
 }

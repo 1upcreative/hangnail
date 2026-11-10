@@ -1,6 +1,6 @@
 {
   "name": "hangnail",
-  "version": "1.0.2",
+  "version": "1.0.3",
   "description": "Stops a test run when a test file hangs, and tells you which file.",
   "type": "module",
   "main": "./src/index.mjs",

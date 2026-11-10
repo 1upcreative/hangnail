@@ -48,14 +48,14 @@ Set the file limit well above your slowest file. If your whole suite takes a min
 import { watch, report } from "hangnail";
 
 const run = await watch("npm", ["test"], { fileLimitS: 300, totalLimitS: 1200 });
-if (run.hung.length || run.timedOut) console.error(report(run));
+if (run.hung.length || run.timedOut || run.blind) console.error(report(run));
 ```
 
-`watch` resolves to `{ status, out, hung, timedOut }`. `out` holds everything the command printed. Pass `echo: true` to also stream it live.
+`watch` resolves to `{ status, signal, out, hung, timedOut, blind, unwatched, signalled }`. `out` holds everything the command printed. `blind` means `ps` stopped working mid-run, so hangnail stopped the run. `unwatched` means `ps` never worked on this machine, so only the total limit applied. `signalled` names the signal that stopped hangnail itself. Pass `echo: true` to also stream the output live.
 
 ## How it works
 
-`node --test` runs each test file in its own process, with the file's path in the command line. Every few seconds, hangnail reads `ps`, finds the test-file processes under your command, and checks how long each one has run. When one passes the limit, hangnail stops everything the command started, including helpers that left its process group. If hangnail itself gets stopped (Ctrl-C, SIGTERM, a closed terminal), it takes the run down with it first. If it can't read `ps` three times in a row, it stops the run rather than watch nothing.
+`node --test` runs each test file in its own process, with the file's path in the command line. Every few seconds, hangnail reads `ps`, finds the test-file processes under your command, and checks how long each one has run. When one passes the limit, hangnail stops everything the command started, including helpers that left its process group. If hangnail itself gets stopped (Ctrl-C, SIGTERM, a closed terminal), it takes the run down with it first. If `ps` stops working mid-run, it stops the run rather than watch nothing. On a machine where `ps` never works, it keeps the run going on `--total-limit` alone and says so. Before it kills a process by its ID, it checks that the ID still runs the same command, so it never hits a process that reused the ID.
 
 ## Why files hang
 

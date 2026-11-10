@@ -8,7 +8,7 @@ import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "no
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
-import { etimeSeconds, report, runningTestFiles, watch } from "../src/index.mjs";
+import { etimeSeconds, report, runningTestFiles, stillOurs, watch } from "../src/index.mjs";
 
 const dir = mkdtempSync(join(tmpdir(), "hangnail-"));
 test.after(() => rmSync(dir, { recursive: true, force: true }));
@@ -77,6 +77,29 @@ test("the total limit stops a run even when no single file is over", async () =>
   const r = await watch(process.execPath, ["--test", stuck], { cwd: dir, fileLimitS: 60, totalLimitS: 2, pollMs: 500 });
   assert.equal(r.timedOut, true);
   assert.match(report(r, { fileLimitS: 60 }), /whole run passed its time limit/);
+});
+
+test("a pid the system handed to something else is never stopped", () => {
+  const seen = new Map([[500, "node tests/slow.test.ts"], [501, "sleep 60"]]);
+  const rows = [
+    { pid: 500, command: "node tests/slow.test.ts" },
+    { pid: 501, command: "/usr/bin/some-editor notes.txt" }, // 501 was reused
+    { pid: 502, command: "node tests/slow.test.ts" },        // never seen
+  ];
+  assert.deepEqual(stillOurs(seen, rows), [500]);
+});
+
+test("with no ps at all, the run is not stopped blind: the total limit still applies", async () => {
+  const path = process.env.PATH;
+  process.env.PATH = join(dir, "no-such-bin");
+  try {
+    const r = await watch(process.execPath, ["--test", stuck], { cwd: dir, env: { ...process.env, PATH: path }, fileLimitS: 1, totalLimitS: 3, pollMs: 500 });
+    assert.equal(r.unwatched, true);
+    assert.equal(r.blind, false);
+    assert.equal(r.timedOut, true);
+  } finally {
+    process.env.PATH = path;
+  }
 });
 
 const alive = (pid) => { try { process.kill(pid, 0); return true; } catch { return false; } };
