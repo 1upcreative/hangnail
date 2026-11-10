@@ -1,0 +1,61 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 240 280" width="240" height="280" role="img" aria-labelledby="t">
+  <title id="t">hangnail: a worried fingernail with a hangnail</title>
+  <defs>
+    <linearGradient id="skin" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#f6c7a8"/>
+      <stop offset="1" stop-color="#e9a983"/>
+    </linearGradient>
+    <linearGradient id="nail" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#ffe9ef"/>
+      <stop offset="1" stop-color="#f7c4d2"/>
+    </linearGradient>
+  </defs>
+
+  <!-- the spinner it is stuck on -->
+  <g transform="translate(196 44)">
+    <circle r="20" fill="none" stroke="#c9ced6" stroke-width="6"/>
+    <path d="M0 -20 A20 20 0 0 1 20 0" fill="none" stroke="#5b8def" stroke-width="6" stroke-linecap="round">
+      <animateTransform attributeName="transform" type="rotate" from="0" to="360" dur="1.2s" repeatCount="indefinite"/>
+    </path>
+  </g>
+
+  <!-- fingertip -->
+  <path d="M52 280 V120 C52 62 86 30 120 30 C154 30 188 62 188 120 V280 Z" fill="url(#skin)" stroke="#8a4f33" stroke-width="5" stroke-linejoin="round"/>
+  <!-- knuckle lines -->
+  <path d="M84 250 Q120 242 156 250 M92 262 Q120 256 148 262" fill="none" stroke="#c98563" stroke-width="3" stroke-linecap="round"/>
+
+  <!-- nail -->
+  <path d="M70 196 V112 C70 72 94 50 120 50 C146 50 170 72 170 112 V196 Q120 214 70 196 Z" fill="url(#nail)" stroke="#8a4f33" stroke-width="5" stroke-linejoin="round"/>
+  <!-- cuticle -->
+  <path d="M70 196 Q120 214 170 196" fill="none" stroke="#fff4ee" stroke-width="5" stroke-linecap="round" opacity=".9"/>
+  <!-- shine -->
+  <path d="M86 92 C88 76 98 66 110 62" fill="none" stroke="#ffffff" stroke-width="7" stroke-linecap="round" opacity=".8"/>
+
+  <!-- the hangnail, peeling up off the side of the cuticle -->
+  <path d="M160 202 C170 192 182 182 198 172 C194 182 186 194 172 204 Z" fill="#f6c7a8" stroke="#8a4f33" stroke-width="4" stroke-linejoin="round"/>
+  <path d="M166 200 C176 192 184 186 192 180" fill="none" stroke="#fff4ee" stroke-width="2" stroke-linecap="round"/>
+  <!-- ouch -->
+  <g stroke="#e5484d" stroke-width="4" stroke-linecap="round">
+    <path d="M204 176 L214 168"/>
+    <path d="M208 190 L222 190"/>
+    <path d="M202 202 L212 210"/>
+  </g>
+
+  <!-- worried brows -->
+  <path d="M88 108 Q98 98 110 104" fill="none" stroke="#5a2e1c" stroke-width="5" stroke-linecap="round"/>
+  <path d="M130 104 Q142 98 152 108" fill="none" stroke="#5a2e1c" stroke-width="5" stroke-linecap="round"/>
+  <!-- big eyes -->
+  <ellipse cx="100" cy="132" rx="12" ry="15" fill="#2b1a14"/>
+  <ellipse cx="140" cy="132" rx="12" ry="15" fill="#2b1a14"/>
+  <circle cx="104" cy="126" r="4.5" fill="#fff"/>
+  <circle cx="144" cy="126" r="4.5" fill="#fff"/>
+  <circle cx="97" cy="138" r="2" fill="#fff"/>
+  <circle cx="137" cy="138" r="2" fill="#fff"/>
+  <!-- blush -->
+  <ellipse cx="84" cy="156" rx="9" ry="5" fill="#f08aa6" opacity=".55"/>
+  <ellipse cx="156" cy="156" rx="9" ry="5" fill="#f08aa6" opacity=".55"/>
+  <!-- wobbly mouth -->
+  <path d="M104 170 Q110 164 116 170 Q122 176 128 170 Q134 164 138 170" fill="none" stroke="#5a2e1c" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/>
+  <!-- sweat drop -->
+  <path d="M164 92 C170 102 174 108 174 114 A8 8 0 0 1 158 114 C158 108 160 102 164 92 Z" fill="#8fd3ff" stroke="#3a8fc7" stroke-width="2.5"/>
+</svg>

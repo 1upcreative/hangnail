@@ -1,0 +1,17 @@
+{
+  "name": "hangnail",
+  "version": "1.0.0",
+  "description": "Stops a test run when a test file hangs, and tells you which file.",
+  "type": "module",
+  "main": "./src/index.mjs",
+  "exports": "./src/index.mjs",
+  "bin": { "hangnail": "./bin/hangnail.mjs" },
+  "files": ["src", "bin", "hangnail.svg"],
+  "scripts": { "test": "node --test test/hangnail.test.mjs" },
+  "engines": { "node": ">=18" },
+  "os": ["darwin", "linux"],
+  "keywords": ["test", "hang", "timeout", "watchdog", "node-test", "ci"],
+  "repository": { "type": "git", "url": "git+https://github.com/1upcreative/hangnail.git" },
+  "license": "MIT",
+  "author": "1UP Creative"
+}
