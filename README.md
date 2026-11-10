@@ -31,13 +31,13 @@ npx hangnail -- node --test
 { "scripts": { "test": "hangnail --file-limit 120 -- node --test" } }
 ```
 
-Your output still shows live. hangnail exits with your command's own exit code. If it had to stop a hung run, it exits with 124.
+Your output still shows live. hangnail exits with your command's own exit code (128 + the signal number if a signal killed it). If it had to stop a hung run, it exits with 124.
 
 | Option | Default | What it does |
 | --- | --- | --- |
 | `--file-limit <s>` | 300 | Stop when one test file runs this many seconds. Env: `HANGNAIL_FILE_LIMIT` |
 | `--total-limit <s>` | none | Stop when the whole run takes this many seconds. Env: `HANGNAIL_TOTAL_LIMIT` |
-| `--poll <s>` | 5 | How often hangnail checks |
+| `--poll <s>` | 5 | How often hangnail checks (at least 0.5) |
 | `--match <regex>` | `*.test.*`, `*.spec.*` | What a test file path looks like |
 
 Set the file limit well above your slowest file. If your whole suite takes a minute, 2 to 5 minutes is plenty.
@@ -55,7 +55,7 @@ if (run.hung.length || run.timedOut) console.error(report(run));
 
 ## How it works
 
-`node --test` runs each test file in its own process, with the file's path in the command line. Every few seconds, hangnail reads `ps`, finds the test-file processes under your command, and checks how long each one has run. When one passes the limit, hangnail stops the command's whole process group, so no orphans keep running.
+`node --test` runs each test file in its own process, with the file's path in the command line. Every few seconds, hangnail reads `ps`, finds the test-file processes under your command, and checks how long each one has run. When one passes the limit, hangnail stops everything the command started, including helpers that left its process group. If hangnail itself gets stopped (Ctrl-C, SIGTERM, a closed terminal), it takes the run down with it first. If it can't read `ps` three times in a row, it stops the run rather than watch nothing.
 
 ## Why files hang
 
@@ -71,6 +71,7 @@ Run the named file alone and look at what its teardown leaves open.
 
 - Per-file checks need a runner that gives each test file its own process with the path in the command line. `node --test` works. Runners with shared worker pools, like Jest and Vitest, don't show file paths per process. Use `--total-limit` with them.
 - macOS and Linux only. hangnail reads `ps` and stops process groups, and Windows has neither.
+- Time counts by the clock. If your laptop sleeps mid-run, a file can look hung when you wake it.
 
 ## License
 
